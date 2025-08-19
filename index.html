@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Medical Claims Dashboard (No deps)</title>
+  <style>
+    body{font-family:system-ui,Arial;margin:24px;color:#111}
+    h1{margin:0 0 8px 0}
+    .muted{color:#666}
+    table{border-collapse:collapse;margin-top:12px;width:100%;max-width:840px}
+    th,td{border:1px solid #ddd;padding:8px;text-align:left}
+    th{background:#f4f6f8}
+    .kpis{display:flex;gap:16px;flex-wrap:wrap;margin:16px 0}
+    .card{border:1px solid #eee;border-radius:10px;padding:12px;min-width:180px}
+    .big{font-size:20px;font-weight:700}
+  </style>
+</head>
+<body>
+  <h1>Medical Claims Dashboard</h1>
+  <div class="muted">Tiny, dependency-free demo that reads data embedded below.</div>
+
+  <div id="kpis" class="kpis"></div>
+  <h3>Denied Dollars by Code</h3>
+  <table id="denials"><thead><tr><th>Denial Code</th><th>Denied $</th></tr></thead><tbody></tbody></table>
+
+  <h3>By Claim Type</h3>
+  <table id="bytype"><thead><tr><th>Claim Type</th><th>Claims</th><th>Allowed $</th><th>Denial Rate</th></tr></thead><tbody></tbody></table>
+
+  <!-- Embed CSV as JSON to avoid any external files -->
+  <script type="application/json" id="claims">
+  [
+    {"ClaimID":1001,"MemberID":"M001","ProviderID":"P001","ClaimType":"Professional","PlaceOfService":"11 Office","DateOfService":"2024-01-12","Billed":5000,"Allowed":2600,"Paid":2450,"DeniedFlag":0,"DenialCode":"","DX1":"I10"},
+    {"ClaimID":1002,"MemberID":"M002","ProviderID":"P002","ClaimType":"Outpatient","PlaceOfService":"22 Outpatient Hospital","DateOfService":"2024-02-03","Billed":2300,"Allowed":1200,"Paid":0,"DeniedFlag":1,"DenialCode":"45","DX1":"E11.9"},
+    {"ClaimID":1003,"MemberID":"M003","ProviderID":"P001","ClaimType":"Professional","PlaceOfService":"11 Office","DateOfService":"2024-02-10","Billed":1200,"Allowed":800,"Paid":760,"DeniedFlag":0,"DenialCode":"","DX1":"E78.5"},
+    {"ClaimID":1004,"MemberID":"M004","ProviderID":"P003","ClaimType":"Inpatient","PlaceOfService":"21 Inpatient Hospital","DateOfService":"2024-03-01","Billed":9000,"Allowed":5200,"Paid":4900,"DeniedFlag":0,"DenialCode":"","DX1":"I50.9"},
+    {"ClaimID":1005,"MemberID":"M005","ProviderID":"P002","ClaimType":"Professional","PlaceOfService":"11 Office","DateOfService":"2024-03-05","Billed":4500,"Allowed":2000,"Paid":0,"DeniedFlag":1,"DenialCode":"96","DX1":"F32.9"},
+    {"ClaimID":1006,"MemberID":"M001","ProviderID":"P001","ClaimType":"Professional","PlaceOfService":"11 Office","DateOfService":"2024-03-22","Billed":700,"Allowed":400,"Paid":380,"DeniedFlag":0,"DenialCode":"","DX1":"I10"},
+    {"ClaimID":1007,"MemberID":"M006","ProviderID":"P004","ClaimType":"Outpatient","PlaceOfService":"22 Outpatient Hospital","DateOfService":"2024-04-02","Billed":3200,"Allowed":1500,"Paid":1450,"DeniedFlag":0,"DenialCode":"","DX1":"J45.909"},
+    {"ClaimID":1008,"MemberID":"M007","ProviderID":"P005","ClaimType":"Professional","PlaceOfService":"11 Office","DateOfService":"2024-04-20","Billed":850,"Allowed":450,"Paid":0,"DeniedFlag":1,"DenialCode":"97","DX1":"K21.9"},
+    {"ClaimID":1009,"MemberID":"M008","ProviderID":"P002","ClaimType":"Inpatient","PlaceOfService":"21 Inpatient Hospital","DateOfService":"2024-05-07","Billed":11000,"Allowed":6000,"Paid":5700,"DeniedFlag":0,"DenialCode":"","DX1":"J18.9"},
+    {"ClaimID":1010,"MemberID":"M009","ProviderID":"P006","ClaimType":"Professional","PlaceOfService":"11 Office","DateOfService":"2024-05-19","Billed":1500,"Allowed":900,"Paid":870,"DeniedFlag":0,"DenialCode":"","DX1":"M54.50"}
+  ]
+  </script>
+
+  <script>
+    const data = JSON.parse(document.getElementById('claims').textContent);
+
+    // KPIs
+    const sum = (k) => data.reduce((a,r)=>a+Number(r[k]||0),0);
+    const denialRate = data.filter(r=>Number(r.DeniedFlag)===1).length / data.length;
+    const kpis = [
+      ["Total Claims", data.length],
+      ["Billed $", sum("Billed").toFixed(2)],
+      ["Allowed $", sum("Allowed").toFixed(2)],
+      ["Paid $", sum("Paid").toFixed(2)],
+      ["Denial Rate", (denialRate*100).toFixed(1) + "%"]
+    ];
+    document.getElementById('kpis').innerHTML = kpis.map(([k,v]) =>
+      `<div class="card"><div class="muted">${k}</div><div class="big">${v}</div></div>`).join("");
+
+    // Denied dollars by code
+    const denied = data.filter(r=>Number(r.DeniedFlag)===1)
+      .map(r=>({code:r.DenialCode||"(none)", dollars:(Number(r.Allowed||0)-Number(r.Paid||0))}))
+      .reduce((m,r)=>((m[r.code]=(m[r.code]||0)+r.dollars),m),{});
+    const denRows = Object.entries(denied)
+      .sort((a,b)=>b[1]-a[1])
+      .map(([code,val])=>`<tr><td>${code}</td><td>$${val.toFixed(2)}</td></tr>`)
+      .join("");
+    document.querySelector('#denials tbody').innerHTML = denRows || "<tr><td colspan=2>No denials</td></tr>";
+
+    // By ClaimType
+    const byType = {};
+    for (const r of data){
+      const k = r.ClaimType;
+      byType[k] ??= {claims:0, allowed:0, denied:0};
+      byType[k].claims++;
+      byType[k].allowed += Number(r.Allowed||0);
+      byType[k].denied += Number(r.DeniedFlag||0);
+    }
+    const rows = Object.entries(byType)
+      .sort((a,b)=>b[1].allowed - a[1].allowed)
+      .map(([k,v])=>`<tr><td>${k}</td><td>${v.claims}</td><td>$${v.allowed.toFixed(2)}</td><td>${(v.denied/v.claims*100).toFixed(1)}%</td></tr>`)
+      .join("");
+    document.querySelector('#bytype tbody').innerHTML = rows;
+  </script>
+</body>
+</html>
