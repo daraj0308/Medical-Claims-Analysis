@@ -1,7 +1,4 @@
-# Medical Claims Analysis (mini, copy-paste friendly)
-
-This is a tiny but working medical-claims analysis project you can open directly on GitHub (no zips, no installs).  
-It includes sample data (CSV), SQL queries, a zero-dependency HTML dashboard, and a Python script that runs with only pandas.
+# Medical Claims Analysis 
 
 ## What’s here
 - `data/claims_header.csv` – sample claims
